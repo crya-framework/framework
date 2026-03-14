@@ -18,6 +18,9 @@ dependencies = [
 # @pytest.mark.asyncio on all async tests
 asyncio_mode = "auto"
 
+[project.scripts]
+crya = "crya.cli:main"
+
 [build-system]
 requires = ["uv_build>=0.9.7,<0.10.0"]
 build-backend = "uv_build"

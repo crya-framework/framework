@@ -1,0 +1,1 @@
+from crya import app
