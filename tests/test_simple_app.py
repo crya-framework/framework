@@ -1,5 +1,6 @@
 import importlib
 import sys
+from pathlib import Path
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -11,7 +12,11 @@ _ROUTES_MODULE = "tests.fixtures.test_app.simple.routes.web"
 
 @pytest.fixture
 def simple_app():
-    app = App()
+    app = App(
+        root_path=Path(__file__).parent / "fixtures" / "test_app" / "simple",
+        templates_path="templates",
+        templates_cache_path=Path("cache") / "framework" / "templates",
+    )
     set_app(app)
     if _ROUTES_MODULE in sys.modules:
         importlib.reload(sys.modules[_ROUTES_MODULE])
@@ -39,3 +44,9 @@ async def test_home_returns_hello(client):
 
     assert response.status_code == 200
     assert response.text == "hello world"
+
+
+async def test_welcome_returns_welcome_template(client):
+    response = await client.get("/welcome")
+
+    assert response.status_code == 200

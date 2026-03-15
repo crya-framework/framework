@@ -1,0 +1,9 @@
+<html>
+    <head>
+        <title>Welcome</title>
+    </head>
+
+    <body>
+        <h1>This is a {{ name }} app</h1>
+    </body>
+</html>

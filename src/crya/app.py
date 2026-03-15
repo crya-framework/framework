@@ -1,6 +1,9 @@
+from pathlib import Path
 from typing import Callable, Literal, Self
 
+from crya_loom import render, set_cache_dir
 from starlette.applications import Starlette
+from starlette.responses import HTMLResponse
 from starlette.routing import Route as StarletteRoute
 
 type Method = Literal["GET", "POST", "PATCH", "HEAD", "OPTIONS", "PUT", "DELETE"]
@@ -17,6 +20,12 @@ def get_current_app() -> "App":
     if _current_app is None:
         raise RuntimeError("No app set. Call crya.set_app(app) first.")
     return _current_app
+
+
+def view(template: str, context: dict | None = None) -> HTMLResponse:
+    app = get_current_app()
+    content = render(app.templates_path / template, context)
+    return HTMLResponse(content)
 
 
 class InternalRoute:
@@ -65,9 +74,12 @@ class Route:
 
 
 class App:
-    def __init__(self):
+    def __init__(self, *, root_path: Path | str, templates_path: Path | str, templates_cache_path: Path | str):
+        root = Path(root_path)
+        self.templates_path = root / templates_path
         self._routes: list[InternalRoute] = []
         self.starlette_app: Starlette | None = None
+        set_cache_dir(root / templates_cache_path)
 
     def _add_route(self, route: InternalRoute) -> None:
         self._routes.append(route)
