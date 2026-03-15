@@ -14,7 +14,7 @@ async def cli():
 @click.argument("app")
 async def serve(app: str):
     sys.path.insert(0, os.getcwd())
-    config = uvicorn.Config(app, host="127.0.0.1", port=8000)
+    config = uvicorn.Config(app, host="127.0.0.1", port=8000, reload=True)
     server = uvicorn.Server(config)
 
     await server.serve()
