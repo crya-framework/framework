@@ -50,3 +50,4 @@ async def test_welcome_returns_welcome_template(client):
     response = await client.get("/welcome")
 
     assert response.status_code == 200
+    assert "This is a crya app" in response.text
