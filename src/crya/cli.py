@@ -11,9 +11,10 @@ async def cli():
 
 
 @cli.command()
-async def serve():
+@click.argument("app")
+async def serve(app: str):
     sys.path.insert(0, os.getcwd())
-    config = uvicorn.Config("crya.entrypoint:app", host="127.0.0.1", port=8000)
+    config = uvicorn.Config(app, host="127.0.0.1", port=8000)
     server = uvicorn.Server(config)
 
     await server.serve()
