@@ -109,17 +109,65 @@ Nested `atomic()` blocks use savepoints automatically.
 
 ## Migrations
 
-Crya delegates migrations to Oxyde's own CLI:
+Migrations are managed through the Crya CLI, which integrates with Oxyde's migration system:
+
+### Configuration
+
+Set your database URL in `config/env.py`:
+
+```python
+from crya import BaseEnv
+
+class Env(BaseEnv):
+    DATABASE_URL: str  # e.g., "sqlite:///db.sqlite3" or "postgresql://..."
+
+Env()
+```
+
+Or in `.env`:
 
 ```bash
-# Initialise config (once per project)
-oxyde init
+DATABASE_URL=sqlite:///db.sqlite3
+```
 
-# Generate a migration from your current models
-oxyde makemigrations
+### Commands
+
+```bash
+# Generate a migration from model changes
+crya makemigrations
+
+# Generate with a custom name
+crya makemigrations --name add_user_email
 
 # Apply pending migrations
-oxyde migrate
+crya migrate
+
+# Show migration status
+crya showmigrations
+```
+
+### Options
+
+**makemigrations**:
+- `--name`: Custom migration name
+- `--models`: Comma-separated list of model modules (auto-discovers `models` by default)
+- `--migrations-dir`: Custom migrations directory (defaults to `database/migrations`)
+- `--dry-run`: Preview changes without creating files
+
+**migrate**:
+- `[target]`: Migrate to a specific migration (e.g., `0001`)
+- `--fake`: Mark migrations as applied without executing SQL
+- `--migrations-dir`: Custom migrations directory (defaults to `database/migrations`)
+
+**showmigrations**:
+- `--migrations-dir`: Custom migrations directory (defaults to `database/migrations`)
+
+### Model Location
+
+By default, Crya looks for models in `app/models.py`. To use a different location, specify it with `--models`:
+
+```bash
+crya makemigrations --models myapp.db.models,shared.models
 ```
 
 ## Full API reference
