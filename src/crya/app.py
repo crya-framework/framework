@@ -1,3 +1,4 @@
+import importlib
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Callable, Literal, Self
@@ -96,6 +97,10 @@ class App:
         db_url: str | None = None,
     ):
         root = Path(root_path)
+        try:
+            importlib.import_module("config.env")
+        except ModuleNotFoundError:
+            pass
         self.templates_path = root / templates_path
         self._routes: list[InternalRoute] = []
         self.starlette_app: Starlette | None = None
