@@ -35,6 +35,7 @@ def _get_db_config():
         dialect = "postgres"
     elif "sqlite://" in db_url:
         dialect = "sqlite"
+        db_url = _resolve_sqlite_url(db_url)
     elif "mysql://" in db_url:
         dialect = "mysql"
     else:
@@ -42,6 +43,21 @@ def _get_db_config():
         dialect = "postgres"
 
     return db_url, dialect
+
+
+def _resolve_sqlite_url(db_url: str) -> str:
+    """Resolve relative SQLite paths to absolute.
+
+    Oxyde's Rust layer interprets sqlite:///relative/path as absolute /relative/path,
+    ignoring the working directory. We resolve relative paths to absolute here.
+    """
+    prefix = "sqlite:///"
+    path_part = db_url[len(prefix):]
+
+    if path_part == ":memory:" or path_part.startswith("/"):
+        return db_url
+
+    return f"{prefix}{Path.cwd() / path_part}"
 
 
 def _import_models(models_modules: list[str]) -> int:
