@@ -1,0 +1,145 @@
+# crya.orm
+
+`crya.orm` is a thin re-export layer over [Oxyde](https://github.com/mr-fatalyst/oxyde), an async ORM with a Rust core and Pydantic v2 models. It is the built-in ORM of the Crya framework.
+
+## Setup
+
+Pass a `db_url` to your `App` instance. The connection is opened on startup and closed on shutdown automatically.
+
+```python
+from pathlib import Path
+from crya import App
+
+application = App(
+    root_path=Path(__file__).parent,
+    templates_path="templates",
+    templates_cache_path="cache/compiled/templates",
+    db_url="sqlite:///db.sqlite3",
+)
+```
+
+Supported URL schemes: `sqlite:///`, `postgresql://`, `mysql://`.
+
+## Defining models
+
+```python
+from crya.orm import Model, Field
+
+class Post(Model):
+    id: int | None = Field(default=None, db_pk=True)
+    title: str
+    body: str
+    published: bool = Field(default=False)
+
+    class Meta:
+        is_table = True
+```
+
+Common `Field` parameters:
+
+| Parameter | Description |
+|-----------|-------------|
+| `db_pk=True` | Primary key |
+| `db_unique=True` | Unique constraint |
+| `db_default` | Database-level default (e.g. `"CURRENT_TIMESTAMP"`) |
+| `db_on_delete` | Cascade rule for FK relations (e.g. `"CASCADE"`) |
+
+## CRUD
+
+```python
+# Create
+post = await Post.objects.create(title="Hello", body="World")
+
+# Read
+all_posts = await Post.objects.all()
+post = await Post.objects.get(id=1)
+published = await Post.objects.filter(published=True)
+
+# Update
+await Post.objects.filter(id=1).update(title="Updated")
+
+# Delete
+await Post.objects.filter(id=1).delete()
+```
+
+## Querying
+
+### Q objects (complex filters)
+
+```python
+from crya.orm import Q
+
+results = await Post.objects.filter(Q(published=True) & Q(title__contains="crya"))
+```
+
+### F expressions (column references)
+
+```python
+from crya.orm import F
+
+await Post.objects.filter(id=1).update(views=F("views") + 1)
+```
+
+### Aggregations
+
+```python
+from crya.orm import Count, Sum, Avg, Max, Min
+
+count = await Post.objects.count()
+total = await Post.objects.aggregate(Sum("views"))
+```
+
+### Joins
+
+```python
+posts = await Post.objects.join("author")
+```
+
+## Transactions
+
+```python
+from crya.orm import atomic
+
+async with atomic():
+    author = await Author.objects.create(name="Alice")
+    await Post.objects.create(title="First", author=author)
+```
+
+Nested `atomic()` blocks use savepoints automatically.
+
+## Migrations
+
+Crya delegates migrations to Oxyde's own CLI:
+
+```bash
+# Initialise config (once per project)
+oxyde init
+
+# Generate a migration from your current models
+oxyde makemigrations
+
+# Apply pending migrations
+oxyde migrate
+```
+
+## Full API reference
+
+All public symbols from Oxyde are re-exported from `crya.orm`:
+
+| Symbol | Description |
+|--------|-------------|
+| `Model` | Base class for all models |
+| `Field` | Field definition with DB constraints |
+| `Index`, `Check` | Additional schema constraints |
+| `Q` | Composable filter expressions |
+| `F` | Column reference for expressions |
+| `atomic` | Async transaction context manager |
+| `Count`, `Sum`, `Avg`, `Max`, `Min` | Aggregation functions |
+| `Concat`, `Coalesce`, `RawSQL` | SQL expressions |
+| `db` | Low-level database handle (`db.init(...)`) |
+| `disconnect_all` | Close all connections |
+| `get_connection`, `register_connection` | Manual connection management |
+| `execute_raw` | Run raw SQL |
+| `AsyncDatabase`, `PoolSettings` | Connection configuration |
+| `OxydeError`, `NotFoundError`, `IntegrityError`, `ManagerError`, `MultipleObjectsReturned`, `FieldError`, `FieldLookupError`, `FieldLookupValueError`, `TransactionTimeoutError` | Exceptions |
+| `Query`, `QueryManager` | Low-level query building |

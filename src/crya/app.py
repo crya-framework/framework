@@ -1,11 +1,14 @@
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Callable, Literal, Self
 
+from crya.orm import db, disconnect_all
 from starlette.applications import Starlette
 from starlette.responses import HTMLResponse
 from starlette.routing import Mount, Route as StarletteRoute
 from starlette.staticfiles import StaticFiles
 
+from crya.routing import wrap_handler
 from crya.templating import render, set_cache_dir
 from crya.vite import ViteConfig, _configure as _configure_vite
 
@@ -48,7 +51,7 @@ class Route:
     def _make(
         cls, path: str, methods: list[Method], callable: Callable
     ) -> InternalRoute:
-        route = InternalRoute(StarletteRoute(path, callable, methods=methods))
+        route = InternalRoute(StarletteRoute(path, wrap_handler(callable), methods=methods))
         get_current_app()._add_route(route)
 
         return route
@@ -90,6 +93,7 @@ class App:
         templates_path: Path | str,
         templates_cache_path: Path | str,
         vite: ViteConfig | None = None,
+        db_url: str | None = None,
     ):
         root = Path(root_path)
         self.templates_path = root / templates_path
@@ -97,6 +101,7 @@ class App:
         self.starlette_app: Starlette | None = None
         self._vite_build_dir: Path | None = None
         self._vite_build_url: str = "/build"
+        self._db_url = db_url
         set_cache_dir(root / templates_cache_path)
 
         if vite is not None:
@@ -108,16 +113,29 @@ class App:
         self._routes.append(route)
         self.starlette_app = None
 
+    def _build_starlette_app(self) -> Starlette:
+        db_url = self._db_url
+
+        @asynccontextmanager
+        async def lifespan(app: Starlette):
+            if db_url is not None:
+                await db.init(default=db_url)
+            yield
+            if db_url is not None:
+                await disconnect_all()
+
+        routes = [r.route for r in self._routes]
+        if self._vite_build_dir is not None and self._vite_build_dir.exists():
+            routes.append(
+                Mount(
+                    self._vite_build_url,
+                    StaticFiles(directory=self._vite_build_dir),
+                )
+            )
+        return Starlette(debug=True, routes=routes, lifespan=lifespan)
+
     async def __call__(self, scope, receive, send, *args, **kwargs):
         if self.starlette_app is None:
-            routes = [r.route for r in self._routes]
-            if self._vite_build_dir is not None and self._vite_build_dir.exists():
-                routes.append(
-                    Mount(
-                        self._vite_build_url,
-                        StaticFiles(directory=self._vite_build_dir),
-                    )
-                )
-            self.starlette_app = Starlette(debug=True, routes=routes)
+            self.starlette_app = self._build_starlette_app()
 
         return await self.starlette_app(scope, receive, send, *args, **kwargs)

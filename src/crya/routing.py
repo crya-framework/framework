@@ -76,6 +76,20 @@ def _extract_query_params(
     return request_params
 
 
+def wrap_handler(callable: Callable) -> Callable:
+    async def wrapped(request: Request):
+        params = extract_request_params(request, callable)
+        kwargs: dict[str, Any] = {}
+        for name, param in params.items():
+            value = param.value
+            if param.target_type is not None and param.source is not None:
+                value = param.target_type(value)
+            kwargs[name] = value
+        return await callable(**kwargs)
+
+    return wrapped
+
+
 def extract_request_params(
     request: Request, callable: Callable
 ) -> dict[str, RequestParam]:
