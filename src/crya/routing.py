@@ -1,13 +1,15 @@
 import inspect
 from dataclasses import dataclass
 from types import MappingProxyType
-from typing import Any, Callable, Literal, TypeAlias
+from typing import Any, Callable, Literal, Self, TypeAlias
 
 from starlette.datastructures import QueryParams
+from starlette.requests import Request
+from starlette.routing import Route as StarletteRoute
 
-from crya import Request
+from crya._registry import get_current_app
 
-type Source = Literal["PATH", "QUERY"]
+type Method = Literal["GET", "POST", "PATCH", "HEAD", "OPTIONS", "PUT", "DELETE"]
 
 InspectedParameters: TypeAlias = MappingProxyType[str, inspect.Parameter]
 
@@ -18,6 +20,9 @@ class RequestParam:
     value: Any = None
     target_type: type | None = None
     source: Source | None = None
+
+
+type Source = Literal["PATH", "QUERY"]
 
 
 def _extract_request_name(params: InspectedParameters) -> str | None:
@@ -117,3 +122,52 @@ def extract_request_params(
         request_params[name] = parameter
 
     return request_params
+
+
+class InternalRoute:
+    def __init__(self, route: StarletteRoute):
+        self.route = route
+
+    def name(self, name: str) -> Self:
+        self.route.name = name
+
+        return self
+
+
+class Route:
+    @classmethod
+    def _make(
+        cls, path: str, methods: list[Method], callable: Callable
+    ) -> InternalRoute:
+        route = InternalRoute(StarletteRoute(path, wrap_handler(callable), methods=methods))
+        get_current_app()._add_route(route)
+
+        return route
+
+    @classmethod
+    def get(cls, path: str, callable: Callable) -> InternalRoute:
+        return cls._make(path, ["GET"], callable)
+
+    @classmethod
+    def post(cls, path: str, callable: Callable) -> InternalRoute:
+        return cls._make(path, ["POST"], callable)
+
+    @classmethod
+    def patch(cls, path: str, callable: Callable) -> InternalRoute:
+        return cls._make(path, ["PATCH"], callable)
+
+    @classmethod
+    def put(cls, path: str, callable: Callable) -> InternalRoute:
+        return cls._make(path, ["PUT"], callable)
+
+    @classmethod
+    def delete(cls, path: str, callable: Callable) -> InternalRoute:
+        return cls._make(path, ["DELETE"], callable)
+
+    @classmethod
+    def head(cls, path: str, callable: Callable) -> InternalRoute:
+        return cls._make(path, ["HEAD"], callable)
+
+    @classmethod
+    def options(cls, path: str, callable: Callable) -> InternalRoute:
+        return cls._make(path, ["OPTIONS"], callable)
