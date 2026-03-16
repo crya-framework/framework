@@ -32,7 +32,7 @@ def test_flat_config_module_attributes():
 def test_nested_config_returns_module():
     module = config.database.main
 
-    assert module.db_config.url == "sqlite+aiosqlite:///db.sqlite3"
+    assert module.db_config.url == "sqlite:///db.sqlite3"
 
 
 def test_missing_module_raises_attribute_error():

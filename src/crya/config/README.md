@@ -34,7 +34,7 @@ Your `.env` file:
 ```dotenv
 APP_NAME=MyApp
 DEBUG=true
-DATABASE_URL=sqlite+aiosqlite:///db.sqlite3
+DATABASE_URL=sqlite:///db.sqlite3
 ```
 
 ### Accessing env vars

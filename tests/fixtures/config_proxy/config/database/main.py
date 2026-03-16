@@ -6,4 +6,4 @@ class DatabaseConfig:
     url: str
 
 
-db_config = DatabaseConfig(url="sqlite+aiosqlite:///db.sqlite3")
+db_config = DatabaseConfig(url="sqlite:///db.sqlite3")
