@@ -7,8 +7,6 @@ from starlette.datastructures import QueryParams
 from starlette.requests import Request
 from starlette.routing import Route as StarletteRoute
 
-from crya._registry import get_current_app
-
 type Method = Literal["GET", "POST", "PATCH", "HEAD", "OPTIONS", "PUT", "DELETE"]
 
 InspectedParameters: TypeAlias = MappingProxyType[str, inspect.Parameter]
@@ -134,40 +132,60 @@ class InternalRoute:
         return self
 
 
-class Route:
-    @classmethod
-    def _make(
-        cls, path: str, methods: list[Method], callable: Callable
-    ) -> InternalRoute:
-        route = InternalRoute(StarletteRoute(path, wrap_handler(callable), methods=methods))
-        get_current_app()._add_route(route)
+class _GroupContext:
+    def __init__(self, router: "Router", prefix: str, middleware: list):
+        self._router = router
+        self._prefix = prefix
+        self._middleware = middleware
 
+    def __enter__(self) -> "Router":
+        self._router._push_group(self._prefix, self._middleware)
+        return self._router
+
+    def __exit__(self, *args) -> None:
+        self._router._pop_group()
+
+
+class Router:
+    def __init__(self):
+        self._routes: list[InternalRoute] = []
+        self._group_stack: list[tuple[str, list]] = []
+
+    def _push_group(self, prefix: str, middleware: list) -> None:
+        self._group_stack.append((prefix, middleware))
+
+    def _pop_group(self) -> None:
+        self._group_stack.pop()
+
+    def _current_prefix(self) -> str:
+        return "".join(prefix for prefix, _ in self._group_stack)
+
+    def group(self, prefix: str = "", middleware: list | None = None) -> _GroupContext:
+        return _GroupContext(self, prefix, middleware or [])
+
+    def _add(self, path: str, methods: list[Method], callable: Callable) -> InternalRoute:
+        full_path = self._current_prefix() + path
+        route = InternalRoute(StarletteRoute(full_path, wrap_handler(callable), methods=methods))
+        self._routes.append(route)
         return route
 
-    @classmethod
-    def get(cls, path: str, callable: Callable) -> InternalRoute:
-        return cls._make(path, ["GET"], callable)
+    def get(self, path: str, callable: Callable) -> InternalRoute:
+        return self._add(path, ["GET"], callable)
 
-    @classmethod
-    def post(cls, path: str, callable: Callable) -> InternalRoute:
-        return cls._make(path, ["POST"], callable)
+    def post(self, path: str, callable: Callable) -> InternalRoute:
+        return self._add(path, ["POST"], callable)
 
-    @classmethod
-    def patch(cls, path: str, callable: Callable) -> InternalRoute:
-        return cls._make(path, ["PATCH"], callable)
+    def patch(self, path: str, callable: Callable) -> InternalRoute:
+        return self._add(path, ["PATCH"], callable)
 
-    @classmethod
-    def put(cls, path: str, callable: Callable) -> InternalRoute:
-        return cls._make(path, ["PUT"], callable)
+    def put(self, path: str, callable: Callable) -> InternalRoute:
+        return self._add(path, ["PUT"], callable)
 
-    @classmethod
-    def delete(cls, path: str, callable: Callable) -> InternalRoute:
-        return cls._make(path, ["DELETE"], callable)
+    def delete(self, path: str, callable: Callable) -> InternalRoute:
+        return self._add(path, ["DELETE"], callable)
 
-    @classmethod
-    def head(cls, path: str, callable: Callable) -> InternalRoute:
-        return cls._make(path, ["HEAD"], callable)
+    def head(self, path: str, callable: Callable) -> InternalRoute:
+        return self._add(path, ["HEAD"], callable)
 
-    @classmethod
-    def options(cls, path: str, callable: Callable) -> InternalRoute:
-        return cls._make(path, ["OPTIONS"], callable)
+    def options(self, path: str, callable: Callable) -> InternalRoute:
+        return self._add(path, ["OPTIONS"], callable)

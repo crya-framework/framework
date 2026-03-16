@@ -1,4 +1,5 @@
 import importlib
+import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -6,7 +7,7 @@ from crya._registry import get_current_app, set_app as set_app
 from crya.config.loader import load_config_dict
 from crya.config.schemas import DatabaseConfig, TemplatingConfig
 from crya.orm import db, disconnect_all
-from crya.routing import InternalRoute
+from crya.routing import InternalRoute, Router
 from crya.templating import render, set_cache_dir
 from crya.vite import ViteConfig, _configure as _configure_vite
 from starlette.applications import Starlette
@@ -29,6 +30,7 @@ class App:
         root_directory: Path | str | None = None,
         config_directory: str = "config",
         vite: ViteConfig | None = None,
+        routes: list[str] | None = None,
     ):
         root = Path(root_directory) if root_directory is not None else Path.cwd()
 
@@ -66,9 +68,16 @@ class App:
             self._vite_build_dir = root / vite.build_dir
             self._vite_build_url = vite.build_url
 
-    def _add_route(self, route: InternalRoute) -> None:
-        self._routes.append(route)
-        self.starlette_app = None
+        set_app(self)
+
+        for module_path in routes or []:
+            if module_path in sys.modules:
+                module = importlib.reload(sys.modules[module_path])
+            else:
+                module = importlib.import_module(module_path)
+            router: Router = getattr(module, "router")
+            for route in router._routes:
+                self._routes.append(route)
 
     def _build_starlette_app(self) -> Starlette:
         db_url = self._db_url

@@ -1,14 +1,10 @@
-import importlib
-import sys
 from pathlib import Path
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from crya import App, set_app
+from crya import App
 from crya.orm import disconnect_all, db, execute_raw
-
-_ROUTES_MODULE = "tests.fixtures.test_app.orm.routes.web"
 
 _CREATE_POSTS_TABLE = """
     CREATE TABLE posts (
@@ -27,13 +23,8 @@ async def orm_app(tmp_path):
 
     app = App(
         root_directory=Path(__file__).parent / "fixtures" / "test_app" / "orm",
+        routes=["tests.fixtures.test_app.orm.routes.web"],
     )
-    set_app(app)
-
-    if _ROUTES_MODULE in sys.modules:
-        importlib.reload(sys.modules[_ROUTES_MODULE])
-    else:
-        importlib.import_module(_ROUTES_MODULE)
 
     yield app
 
