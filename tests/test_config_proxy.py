@@ -17,22 +17,16 @@ def isolated_config_env(monkeypatch):
             monkeypatch.delitem(sys.modules, key)
 
 
-def test_flat_config_returns_module():
-    module = config.app
-
-    assert module.app_config.app_name == "CryaTest"
+def test_flat_config_dot_access():
+    assert config.app.app_name == "CryaTest"
 
 
-def test_flat_config_module_attributes():
-    module = config.app
-
-    assert module.app_config.debug is True
+def test_flat_config_dot_access_bool():
+    assert config.app.debug is True
 
 
-def test_nested_config_returns_module():
-    module = config.database.main
-
-    assert module.db_config.url == "sqlite:///db.sqlite3"
+def test_nested_config_dot_access():
+    assert config.database.main.url == "sqlite:///db.sqlite3"
 
 
 def test_missing_module_raises_attribute_error():
@@ -43,3 +37,8 @@ def test_missing_module_raises_attribute_error():
 def test_missing_nested_module_raises_attribute_error():
     with pytest.raises(AttributeError, match="No config module"):
         _ = config.database.nonexistent
+
+
+def test_missing_key_raises_attribute_error():
+    with pytest.raises(AttributeError, match="No config key"):
+        _ = config.app.nonexistent_key

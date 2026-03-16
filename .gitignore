@@ -11,3 +11,6 @@ wheels/
 
 uv.lock
 /cache/*
+
+# cache in tests
+tests/fixtures/test_app/**/cache/*

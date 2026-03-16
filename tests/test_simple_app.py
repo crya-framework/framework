@@ -13,9 +13,7 @@ _ROUTES_MODULE = "tests.fixtures.test_app.simple.routes.web"
 @pytest.fixture
 def simple_app():
     app = App(
-        root_path=Path(__file__).parent / "fixtures" / "test_app" / "simple",
-        templates_path="templates",
-        templates_cache_path=Path("cache") / "framework" / "templates",
+        root_directory=Path(__file__).parent / "fixtures" / "test_app" / "simple",
     )
     set_app(app)
     if _ROUTES_MODULE in sys.modules:

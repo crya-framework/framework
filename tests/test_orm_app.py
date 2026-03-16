@@ -26,9 +26,7 @@ async def orm_app(tmp_path):
     await execute_raw(_CREATE_POSTS_TABLE)
 
     app = App(
-        root_path=Path(__file__).parent / "fixtures" / "test_app" / "orm",
-        templates_path="templates",
-        templates_cache_path=Path("cache") / "framework" / "templates",
+        root_directory=Path(__file__).parent / "fixtures" / "test_app" / "orm",
     )
     set_app(app)
 

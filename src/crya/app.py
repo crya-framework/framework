@@ -9,6 +9,7 @@ from starlette.responses import HTMLResponse
 from starlette.routing import Mount, Route as StarletteRoute
 from starlette.staticfiles import StaticFiles
 
+from crya.config.schemas import DatabaseConfig, TemplatingConfig
 from crya.routing import wrap_handler
 from crya.templating import render, set_cache_dir
 from crya.vite import ViteConfig, _configure as _configure_vite
@@ -86,28 +87,60 @@ class Route:
         return cls._make(path, ["OPTIONS"], callable)
 
 
+def _load_config_dict(root: Path, config_directory: str, name: str) -> dict | None:
+    config_file = root / config_directory / f"{name}.py"
+    if not config_file.exists():
+        return None
+    spec = importlib.util.spec_from_file_location(f"_crya_{config_directory}_{name}", config_file)
+    if spec is None or spec.loader is None:
+        return None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    if not hasattr(module, "config") or not isinstance(module.config, dict):
+        raise ValueError(
+            f"'{config_directory}/{name}.py' must define a top-level 'config' dict"
+        )
+    return module.config
+
+
 class App:
     def __init__(
         self,
         *,
-        root_path: Path | str,
-        templates_path: Path | str,
-        templates_cache_path: Path | str,
+        root_directory: Path | str | None = None,
+        config_directory: str = "config",
         vite: ViteConfig | None = None,
-        db_url: str | None = None,
     ):
-        root = Path(root_path)
-        try:
-            importlib.import_module("config.env")
-        except ModuleNotFoundError:
-            pass
-        self.templates_path = root / templates_path
+        root = Path(root_directory) if root_directory is not None else Path.cwd()
+
+        # Load env config first so env() is available in subsequent config files
+        env_file = root / config_directory / "env.py"
+        if env_file.exists():
+            spec = importlib.util.spec_from_file_location(
+                f"_crya_{config_directory}_env", env_file
+            )
+            if spec is not None and spec.loader is not None:
+                module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(module)
+
+        templating_dict = _load_config_dict(root, config_directory, "templating")
+        templating = (
+            TemplatingConfig.model_validate(templating_dict)
+            if templating_dict is not None
+            else TemplatingConfig()
+        )
+
+        db_dict = _load_config_dict(root, config_directory, "database")
+        self._db_url: str | None = (
+            DatabaseConfig.model_validate(db_dict).url if db_dict is not None else None
+        )
+
+        self.templates_path = root / templating.templates_path
         self._routes: list[InternalRoute] = []
         self.starlette_app: Starlette | None = None
         self._vite_build_dir: Path | None = None
         self._vite_build_url: str = "/build"
-        self._db_url = db_url
-        set_cache_dir(root / templates_cache_path)
+        set_cache_dir(root / templating.cache_path)
 
         if vite is not None:
             _configure_vite(root, vite)
