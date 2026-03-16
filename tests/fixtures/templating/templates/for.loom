@@ -1,0 +1,7 @@
+<html>
+    <body>
+        @for(day in days)
+            <h1>{{ day }}</h1>
+        @endfor
+    </body>
+</html>

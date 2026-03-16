@@ -1,0 +1,11 @@
+<html>
+    <body>
+        {{-- This is a single-line comment --}}
+        <h1>Hello World</h1>
+        {{-- This is a multiline comment
+             that spans multiple lines
+             and should be completely ignored --}}
+        <p>{{ name }}</p>
+        {{-- Another comment here --}}
+    </body>
+</html>

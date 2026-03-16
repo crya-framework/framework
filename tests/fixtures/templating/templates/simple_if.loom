@@ -1,0 +1,7 @@
+<html>
+    <body>
+        @if(morning)
+            <h1>Good morning</h1>
+        @endif
+    </body>
+</html>

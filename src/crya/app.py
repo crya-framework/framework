@@ -1,10 +1,11 @@
 from pathlib import Path
 from typing import Callable, Literal, Self
 
-from crya_loom import render, set_cache_dir
 from starlette.applications import Starlette
 from starlette.responses import HTMLResponse
 from starlette.routing import Route as StarletteRoute
+
+from crya.templating import render, set_cache_dir
 
 type Method = Literal["GET", "POST", "PATCH", "HEAD", "OPTIONS", "PUT", "DELETE"]
 
@@ -19,12 +20,14 @@ def set_app(app: "App") -> None:
 def get_current_app() -> "App":
     if _current_app is None:
         raise RuntimeError("No app set. Call crya.set_app(app) first.")
+
     return _current_app
 
 
 def view(template: str, context: dict | None = None) -> HTMLResponse:
     app = get_current_app()
     content = render(app.templates_path / template, context)
+
     return HTMLResponse(content)
 
 
@@ -34,14 +37,18 @@ class InternalRoute:
 
     def name(self, name: str) -> Self:
         self.route.name = name
+
         return self
 
 
 class Route:
     @classmethod
-    def _make(cls, path: str, methods: list[Method], callable: Callable) -> InternalRoute:
+    def _make(
+        cls, path: str, methods: list[Method], callable: Callable
+    ) -> InternalRoute:
         route = InternalRoute(StarletteRoute(path, callable, methods=methods))
         get_current_app()._add_route(route)
+
         return route
 
     @classmethod
@@ -74,7 +81,13 @@ class Route:
 
 
 class App:
-    def __init__(self, *, root_path: Path | str, templates_path: Path | str, templates_cache_path: Path | str):
+    def __init__(
+        self,
+        *,
+        root_path: Path | str,
+        templates_path: Path | str,
+        templates_cache_path: Path | str,
+    ):
         root = Path(root_path)
         self.templates_path = root / templates_path
         self._routes: list[InternalRoute] = []
@@ -90,4 +103,5 @@ class App:
             self.starlette_app = Starlette(
                 debug=True, routes=[r.route for r in self._routes]
             )
+
         return await self.starlette_app(scope, receive, send, *args, **kwargs)

@@ -1,0 +1,11 @@
+<html>
+    <body>
+        <h1>Hello World</h1>
+        {{-- This is a multiline comment
+            @python
+                name = "John Doe"
+            @endpython
+        --}}
+        <p>{{ name }}</p>
+    </body>
+</html>

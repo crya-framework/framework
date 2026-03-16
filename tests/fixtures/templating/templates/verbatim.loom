@@ -1,0 +1,13 @@
+<html>
+    <body>
+        @verbatim
+        @python
+            days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+        @endpython
+
+        @for(day in days)
+            <h1>{{ day }}</h1>
+        @endfor
+        @endverbatim
+    </body>
+</html>

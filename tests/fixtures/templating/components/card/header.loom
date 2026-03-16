@@ -1,0 +1,4 @@
+<div class="card-header">
+    <h3>{{ title }}</h3>
+    {{ slot }}
+</div>

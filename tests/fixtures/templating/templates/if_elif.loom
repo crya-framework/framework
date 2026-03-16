@@ -1,0 +1,11 @@
+<html>
+    <body>
+        @if(time == "morning")
+            <h1>Good morning</h1>
+        @elif(time == "afternoon")
+            <h1>Good afternoon</h1>
+        @else
+            <h1>Good evening</h1>
+        @endif
+    </body>
+</html>
