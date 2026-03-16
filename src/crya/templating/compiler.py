@@ -92,12 +92,15 @@ def compile_tokens(tokens: list[Token]) -> list[str]:
         elif token.type == TT.ENDFOR:
             depth -= 1
 
+        elif token.type == TT.VITE:
+            lines.append(f"{ind}output += _vite({token.value})\n")
+
     lines.append("return output\n")
     return lines
 
 
 def compile_template(template: str) -> str:
-    from crya_loom.tokens import tokenize
+    from .tokens import tokenize
 
     tokens = tokenize(template)
     body = compile_tokens(tokens)

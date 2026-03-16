@@ -17,6 +17,7 @@ class TT(Enum):
     FOR = auto()
     ENDFOR = auto()
     COMPONENT = auto()  # Component tag (both self-closing and opening)
+    VITE = auto()
 
 
 @dataclass
@@ -64,6 +65,7 @@ _PATTERNS: list[tuple[TT, re.Pattern]] = [
     (TT.ENDIF, re.compile(r"^[ \t]*@endif[ \t]*\n?", _LINE)),
     (TT.FOR, re.compile(r"^[ \t]*@for\((.+)\)[ \t]*\n?", _LINE)),
     (TT.ENDFOR, re.compile(r"^[ \t]*@endfor[ \t]*\n?", _LINE)),
+    (TT.VITE, re.compile(r"^[ \t]*@vite\((.+)\)[ \t]*\n?", _LINE)),
 ]
 
 _DIRECTIVE_TYPES = {
@@ -75,6 +77,7 @@ _DIRECTIVE_TYPES = {
     TT.ENDFOR,
     TT.PYTHON,
     TT.VERBATIM,
+    TT.VITE,
 }
 
 

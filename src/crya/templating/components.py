@@ -36,7 +36,7 @@ def _render_slot(slot_template: str, parent_context: dict) -> str:
     if not slot_template:
         return ""
     # Lazy import to avoid circular dependency
-    from crya_loom.renderer import render_from_string
+    from .renderer import render_from_string
 
     return render_from_string(slot_template, parent_context)
 
@@ -46,7 +46,7 @@ def _render_component(
 ) -> str:
     """Render a component with given attributes and slot content."""
     # Lazy import to avoid circular dependency
-    from crya_loom.renderer import render_from_string
+    from .renderer import render_from_string
 
     component_path = _resolve_component_path(component_name)
 

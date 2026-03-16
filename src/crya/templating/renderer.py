@@ -4,6 +4,7 @@ from pathlib import Path
 
 from .compiler import compile_template
 from .components import _render_component, _render_slot
+from crya.vite import vite as _vite
 
 COMPILED_PREFIX = "template_"
 PROJECT_ROOT = Path(os.getcwd())
@@ -53,6 +54,7 @@ def render_from_string(template: str, context: dict | None = None) -> str:
         **context,
         "_render_component": _render_component,
         "_render_slot": _render_slot,
+        "_vite": _vite,
     }
 
     # Execute the compiled template in the namespace

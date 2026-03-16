@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 
-from crya_loom import render_from_string, set_component_base_dir
+from crya.templating import render_from_string, set_component_base_dir
 
 PROJECT_ROOT = Path(os.path.abspath(__file__)).parent.parent.parent
 
