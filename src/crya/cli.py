@@ -1,6 +1,4 @@
-import asyncio
 import importlib
-import json
 import os
 import sys
 from pathlib import Path
@@ -11,7 +9,6 @@ import uvicorn
 
 def _get_db_config():
     """Get database configuration from environment."""
-    # Import config.env to trigger BaseEnv registration
     try:
         importlib.import_module("config.env")
     except ImportError as e:
@@ -30,66 +27,14 @@ def _get_db_config():
         click.echo("   Set DATABASE_URL in your .env file or config/env.py")
         raise click.Abort()
 
-    # Auto-detect dialect from URL
-    if "postgresql://" in db_url or "postgres://" in db_url:
-        dialect = "postgres"
-    elif "sqlite://" in db_url:
-        dialect = "sqlite"
-        db_url = _resolve_sqlite_url(db_url)
-    elif "mysql://" in db_url:
-        dialect = "mysql"
-    else:
-        click.secho(f"⚠️  Unknown database URL scheme, defaulting to postgres", fg="yellow")
-        dialect = "postgres"
+    from crya.orm.migrations import detect_dialect
+
+    db_url, dialect = detect_dialect(db_url)
+
+    if dialect == "postgres" and "postgresql://" not in db_url and "postgres://" not in db_url:
+        click.secho("⚠️  Unknown database URL scheme, defaulting to postgres", fg="yellow")
 
     return db_url, dialect
-
-
-def _resolve_sqlite_url(db_url: str) -> str:
-    """Resolve relative SQLite paths to absolute.
-
-    Oxyde's Rust layer interprets sqlite:///relative/path as absolute /relative/path,
-    ignoring the working directory. We resolve relative paths to absolute here.
-    """
-    prefix = "sqlite:///"
-    path_part = db_url[len(prefix):]
-
-    if path_part == ":memory:" or path_part.startswith("/"):
-        return db_url
-
-    return f"{prefix}{Path.cwd() / path_part}"
-
-
-def _import_models(models_modules: list[str]) -> int:
-    """Import model modules to register them with oxyde.
-
-    Args:
-        models_modules: List of module paths to import
-
-    Returns:
-        Number of successfully imported modules
-    """
-    if "." not in sys.path:
-        sys.path.insert(0, ".")
-
-    imported = 0
-    for module_name in models_modules:
-        try:
-            importlib.import_module(module_name)
-            imported += 1
-        except ImportError as e:
-            click.secho(f"   ⚠️  Failed to import '{module_name}': {e}", fg="yellow")
-
-    return imported
-
-
-def _get_default_models() -> list[str]:
-    """Get default models module.
-
-    Returns:
-        List with default models module path
-    """
-    return ["app.models"]
 
 
 @click.group()
@@ -114,11 +59,14 @@ async def serve(app: str):
 @click.option("--migrations-dir", default="database/migrations", help="Migrations directory")
 async def makemigrations(name: str | None, dry_run: bool, models: str | None, migrations_dir: str):
     """Create migration files from model changes."""
-    from oxyde.core import migration_compute_diff
-    from oxyde.migrations import (
-        extract_current_schema,
-        generate_migration_file,
-        replay_migrations,
+    from crya.orm.migrations import (
+        DEFAULT_MODELS,
+        compute_diff,
+        create_migration_file,
+        extract_schema,
+        generate_type_stubs,
+        import_models,
+        replay_schema,
     )
 
     sys.path.insert(0, os.getcwd())
@@ -130,26 +78,26 @@ async def makemigrations(name: str | None, dry_run: bool, models: str | None, mi
 
     # Import models
     click.echo("0️⃣  Loading models...")
-    if models:
-        models_list = [m.strip() for m in models.split(",")]
-    else:
-        models_list = _get_default_models()
+    modules = [m.strip() for m in models.split(",")] if models else DEFAULT_MODELS
+    result = import_models(modules)
 
-    imported = _import_models(models_list)
-    if imported == 0:
+    for module_name, error in result.failed:
+        click.secho(f"   ⚠️  Failed to import '{module_name}': {error}", fg="yellow")
+
+    if not result.imported:
         click.secho("   ❌ No modules imported", fg="red")
         raise click.Abort()
-    click.echo(f"   ✅ Imported {imported} module(s)")
+
+    click.echo(f"   ✅ Imported {len(result.imported)} module(s)")
 
     # Extract current schema
     click.echo()
     click.echo("1️⃣  Extracting schema from models...")
     try:
-        current_schema = extract_current_schema(dialect=dialect)
-        table_count = len(current_schema["tables"])
-        tables = ", ".join(current_schema["tables"].keys())
-        if table_count > 0:
-            click.echo(f"   ✅ Found {table_count} table(s): {tables}")
+        schema_result = extract_schema(dialect=dialect)
+        if schema_result.table_names:
+            tables = ", ".join(schema_result.table_names)
+            click.echo(f"   ✅ Found {len(schema_result.table_names)} table(s): {tables}")
         else:
             click.secho("   ⚠️  No tables found", fg="yellow")
             click.echo("   Make sure your models have 'class Meta: is_table = True'")
@@ -168,7 +116,7 @@ async def makemigrations(name: str | None, dry_run: bool, models: str | None, mi
         old_schema = {"version": 1, "tables": {}}
     else:
         try:
-            old_schema = replay_migrations(migrations_dir)
+            old_schema = replay_schema(migrations_dir)
             migration_count = len(list(migrations_path.glob("[0-9]*.py")))
             click.echo(f"   ✅ Replayed {migration_count} migration(s)")
         except Exception as e:
@@ -180,18 +128,15 @@ async def makemigrations(name: str | None, dry_run: bool, models: str | None, mi
     click.echo()
     click.echo("3️⃣  Computing diff...")
     try:
-        operations_json = migration_compute_diff(
-            json.dumps(old_schema), json.dumps(current_schema)
-        )
-        operations = json.loads(operations_json)
+        diff = compute_diff(old_schema, schema_result.schema)
 
-        if not operations:
+        if not diff.operations:
             click.echo()
             click.secho("   ✨ No changes detected", fg="green")
             return
 
-        click.echo(f"   ✅ Found {len(operations)} operation(s):")
-        for op in operations:
+        click.echo(f"   ✅ Found {len(diff.operations)} operation(s):")
+        for op in diff.operations:
             op_type = op.get("type", "unknown")
             if op_type == "create_table":
                 click.echo(f"      - Create table: {op['table']['name']}")
@@ -213,15 +158,11 @@ async def makemigrations(name: str | None, dry_run: bool, models: str | None, mi
     if dry_run:
         click.secho("   [DRY RUN] Would create migration file", fg="yellow")
         click.echo(f"   Migration name: {name or 'auto'}")
-        click.echo(f"   Operations: {len(operations)}")
+        click.echo(f"   Operations: {len(diff.operations)}")
     else:
         click.echo("4️⃣  Generating migration file...")
         try:
-            filepath = generate_migration_file(
-                operations,
-                migrations_dir=migrations_dir,
-                name=name,
-            )
+            filepath = create_migration_file(diff.operations, migrations_dir=migrations_dir, name=name)
             click.echo()
             click.secho(f"   ✅ Created: {filepath}", fg="green", bold=True)
         except Exception as e:
@@ -232,24 +173,13 @@ async def makemigrations(name: str | None, dry_run: bool, models: str | None, mi
         click.echo()
         click.echo("5️⃣  Generating type stubs...")
         try:
-            from oxyde.codegen import generate_stubs_for_models, write_stubs
-            from oxyde.models.registry import registered_tables
-
-            models_dict = registered_tables()
-            if models_dict:
-                stub_mapping = generate_stubs_for_models(list(models_dict.values()))
-                write_stubs(stub_mapping)
-                click.secho(
-                    f"   ✅ Generated {len(stub_mapping)} stub file(s)",
-                    fg="green",
-                )
+            stubs = generate_type_stubs()
+            if stubs.count:
+                click.secho(f"   ✅ Generated {stubs.count} stub file(s)", fg="green")
             else:
                 click.echo("   ⚠️  No models to generate stubs for")
         except Exception as e:
-            click.secho(
-                f"   ⚠️  Warning: Could not generate stubs: {e}",
-                fg="yellow",
-            )
+            click.secho(f"   ⚠️  Warning: Could not generate stubs: {e}", fg="yellow")
 
 
 @cli.command()
@@ -282,15 +212,12 @@ async def migrate(target: str | None, fake: bool, migrations_dir: str):
         )
         click.echo()
 
-    # Initialize database
     await init_databases({db_alias: db_url})
 
     try:
-        # Get current state
         applied = await get_applied_migrations(db_alias)
         all_migrations = get_migration_files(migrations_dir)
 
-        # Handle rollback to zero
         if target and target.lower() == "zero":
             if not applied:
                 click.secho("✨ No migrations to roll back", fg="green")
@@ -308,16 +235,11 @@ async def migrate(target: str | None, fake: bool, migrations_dir: str):
 
             if rolled_back:
                 click.echo()
-                click.secho(
-                    f"✅ Rolled back {len(rolled_back)} migration(s)",
-                    fg="green",
-                    bold=True,
-                )
+                click.secho(f"✅ Rolled back {len(rolled_back)} migration(s)", fg="green", bold=True)
                 for migration_name in rolled_back:
                     click.echo(f"   - {migration_name}")
             return
 
-        # Handle rollback to specific migration
         if target:
             target_idx = -1
             for i, m in enumerate(all_migrations):
@@ -348,23 +270,17 @@ async def migrate(target: str | None, fake: bool, migrations_dir: str):
 
                 if rolled_back:
                     click.echo()
-                    click.secho(
-                        f"✅ Rolled back {len(rolled_back)} migration(s)",
-                        fg="green",
-                        bold=True,
-                    )
+                    click.secho(f"✅ Rolled back {len(rolled_back)} migration(s)", fg="green", bold=True)
                     for migration_name in rolled_back:
                         click.echo(f"   - {migration_name}")
                 return
 
-        # Forward migration
         pending = get_pending_migrations(migrations_dir, applied)
 
         if not pending:
             click.secho("✨ No pending migrations", fg="green")
             return
 
-        # Filter pending if target specified
         if target:
             filtered = []
             for m in pending:
@@ -373,14 +289,11 @@ async def migrate(target: str | None, fake: bool, migrations_dir: str):
                     break
             pending = filtered
 
-        # Show what will be applied
         click.echo(f"Found {len(pending)} pending migration(s):")
         for migration_path in pending:
             click.echo(f"  - {migration_path.stem}")
-
         click.echo()
 
-        # Apply migrations
         if target:
             click.echo(f"Migrating to: {target}")
         else:
@@ -395,11 +308,7 @@ async def migrate(target: str | None, fake: bool, migrations_dir: str):
 
         if applied_migrations:
             click.echo()
-            click.secho(
-                f"✅ Applied {len(applied_migrations)} migration(s)",
-                fg="green",
-                bold=True,
-            )
+            click.secho(f"✅ Applied {len(applied_migrations)} migration(s)", fg="green", bold=True)
             for migration_name in applied_migrations:
                 click.echo(f"   - {migration_name}")
 
@@ -426,21 +335,17 @@ async def showmigrations(migrations_dir: str):
     click.echo()
 
     try:
-        # Initialize database
         await init_databases({db_alias: db_url})
 
-        # Get applied migrations
         applied = await get_applied_migrations(db_alias)
         applied_set = set(applied)
 
-        # Get all migration files
         all_migrations = get_migration_files(migrations_dir)
 
         if not all_migrations:
             click.secho("No migrations found", fg="yellow")
             return
 
-        # Show status for each migration
         for migration_path in all_migrations:
             name = migration_path.stem
             if name in applied_set:
