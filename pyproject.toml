@@ -27,6 +27,9 @@ crya = "crya.cli:main"
 requires = ["uv_build>=0.9.7,<0.10.0"]
 build-backend = "uv_build"
 
+[tool.uv_build]
+include = ["src/crya/templates/**/*"]
+
 [dependency-groups]
 dev = [
     "httpx>=0.28.1",

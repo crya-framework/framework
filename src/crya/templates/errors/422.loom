@@ -1,0 +1,11 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>422 Unprocessable Entity</title>
+</head>
+<body>
+    <h1>422 Unprocessable Entity</h1>
+    <p>{{ message }}</p>
+</body>
+</html>
