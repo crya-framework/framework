@@ -20,10 +20,9 @@ def set_cache_dir(path: Path | str) -> None:
 
 
 def get_cache_dir() -> Path:
-    """Get cache directory with fallback."""
-    if _CACHE_DIR is not None:
-        return _CACHE_DIR
-    return PROJECT_ROOT / "cache" / "compiled" / "templates"
+    if _CACHE_DIR is None:
+        raise RuntimeError("Template cache directory has not been configured.")
+    return _CACHE_DIR
 
 
 def _get_hash(template: str) -> str:

@@ -7,4 +7,4 @@ class DatabaseConfig(BaseModel):
 
 class TemplatingConfig(BaseModel):
     templates_path: str = "templates"
-    cache_path: str = "cache/templates"
+    cache_path: str = "storage/cache/compiled/templates"

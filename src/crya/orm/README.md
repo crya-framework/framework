@@ -4,19 +4,30 @@
 
 ## Setup
 
-Pass a `db_url` to your `App` instance. The connection is opened on startup and closed on shutdown automatically.
+Set your database URL as an env var and expose it via `config/env.py`:
 
 ```python
-from pathlib import Path
-from crya import App
+# config/env.py
+from crya import BaseEnv
 
-application = App(
-    root_path=Path(__file__).parent,
-    templates_path="templates",
-    templates_cache_path="cache/compiled/templates",
-    db_url="sqlite:///db.sqlite3",
-)
+class Env(BaseEnv):
+    DATABASE_URL: str
+
+Env()
 ```
+
+Then reference it in `config/database.py`:
+
+```python
+# config/database.py
+from crya import env
+
+config = {
+    "url": env("DATABASE_URL"),
+}
+```
+
+Crya reads `config/database.py` automatically on startup, opens the connection during lifespan, and closes it on shutdown.
 
 Supported URL schemes: `sqlite:///`, `postgresql://`, `mysql://`.
 
@@ -110,25 +121,6 @@ Nested `atomic()` blocks use savepoints automatically.
 ## Migrations
 
 Migrations are managed through the Crya CLI, which integrates with Oxyde's migration system:
-
-### Configuration
-
-Set your database URL in `config/env.py`:
-
-```python
-from crya import BaseEnv
-
-class Env(BaseEnv):
-    DATABASE_URL: str  # e.g., "sqlite:///db.sqlite3" or "postgresql://..."
-
-Env()
-```
-
-Or in `.env`:
-
-```bash
-DATABASE_URL=sqlite:///db.sqlite3
-```
 
 ### Commands
 
