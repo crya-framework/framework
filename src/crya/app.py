@@ -6,6 +6,8 @@ from pathlib import Path
 from crya._registry import get_current_app, set_app as set_app
 from crya.config.loader import load_config_dict
 from crya.config.schemas import DatabaseConfig, TemplatingConfig
+from crya.middleware.defaults import DEFAULT_API_MIDDLEWARE, DEFAULT_WEB_MIDDLEWARE
+from crya.middleware.loader import load_middleware_stack
 from crya.orm import db, disconnect_all
 from crya.routing import InternalRoute, Router
 from crya.templating import render, set_cache_dir
@@ -57,6 +59,8 @@ class App:
         )
 
         self.templates_path = root / templating.templates_path
+        self._root = root
+        self._config_directory = config_directory
         self._routes: list[InternalRoute] = []
         self.starlette_app: Starlette | None = None
         self._vite_build_dir: Path | None = None
@@ -90,7 +94,15 @@ class App:
             if db_url is not None:
                 await disconnect_all()
 
-        routes = [r.build() for r in self._routes]
+        web_stack = load_middleware_stack(
+            self._root, self._config_directory, "web", DEFAULT_WEB_MIDDLEWARE
+        )
+        api_stack = load_middleware_stack(
+            self._root, self._config_directory, "api", DEFAULT_API_MIDDLEWARE
+        )
+        named_stacks = {"web": web_stack, "api": api_stack}
+
+        routes = [r.build(named_stacks=named_stacks) for r in self._routes]
         if self._vite_build_dir is not None and self._vite_build_dir.exists():
             routes.append(
                 Mount(
