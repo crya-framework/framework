@@ -34,7 +34,7 @@ Overview:
 | Events / Signals          |        |
 | Localization              |        |
 | Rate limiting             |        |
-| Testing tools             |        |
+| Testing tools             | ✅     |
 | Pytest plugin (Pest-like) | ✅     |
 
 ## Why this name?
