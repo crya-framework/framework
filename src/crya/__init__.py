@@ -3,6 +3,7 @@ from starlette.responses import HTMLResponse, JSONResponse, Response
 
 from crya import console
 from crya.app import App, set_app, view
+from crya.logging import log
 from crya.config import BaseEnv, config, env
 from crya.responses import (
     bad_request,
@@ -32,6 +33,7 @@ __all__ = [
     "HTMLResponse",
     "JSONResponse",
     "console",
+    "log",
     "bad_request",
     "unauthorized",
     "forbidden",

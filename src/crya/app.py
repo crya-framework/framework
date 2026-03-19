@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from crya._registry import get_current_app, set_app as set_app
+from crya.logging import setup_logging
 from crya.config.errors import model_validate_config
 from crya.config.loader import load_config_dict
 from crya.config.schemas import CorsConfig, DatabaseConfig, TemplatingConfig
@@ -37,6 +38,7 @@ class App:
         vite: ViteConfig | None = None,
         routes: list[str] | None = None,
     ):
+        setup_logging()
         root = Path(root_directory) if root_directory is not None else Path.cwd()
 
         # Load env config first so env() is available in subsequent config files

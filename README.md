@@ -13,6 +13,7 @@ Uses:
 - [Starlette](https://starlette.dev/) (for routing and ASGI)
 - [Oxyde](https://github.com/mr-fatalyst/oxyde) for the ORM
 - [Pydantic](https://docs.pydantic.dev/latest/) for data validation
+- [Loguru](https://github.com/Delgan/loguru) for logging
 
 Overview:
 
@@ -28,7 +29,7 @@ Overview:
 | Security                  |        |
 | CSRF Protection           |        |
 | Vite plugin               | ✅     |
-| Logging                   |        |
+| Basic Logging             | ✅     |
 | Caching                   |        |
 | Mailing                   |        |
 | Events / Signals          |        |
