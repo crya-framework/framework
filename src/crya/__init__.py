@@ -11,11 +11,12 @@ from crya.responses import (
     unauthorized,
     unprocessable,
 )
-from crya.routing import Router
+from crya.routing import MiddlewareCallable, Router
 from crya.vite import ViteConfig
 
 __all__ = [
     "App",
+    "MiddlewareCallable",
     "Router",
     "ViteConfig",
     "set_app",

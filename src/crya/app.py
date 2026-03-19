@@ -90,7 +90,7 @@ class App:
             if db_url is not None:
                 await disconnect_all()
 
-        routes = [r.route for r in self._routes]
+        routes = [r.build() for r in self._routes]
         if self._vite_build_dir is not None and self._vite_build_dir.exists():
             routes.append(
                 Mount(

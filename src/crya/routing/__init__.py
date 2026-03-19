@@ -1,5 +1,6 @@
 from crya.routing.router import (
     InternalRoute,
+    MiddlewareCallable,
     RequestParam,
     Router,
     extract_request_params,
@@ -8,6 +9,7 @@ from crya.routing.router import (
 
 __all__ = [
     "InternalRoute",
+    "MiddlewareCallable",
     "RequestParam",
     "Router",
     "extract_request_params",

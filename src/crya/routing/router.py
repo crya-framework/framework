@@ -1,13 +1,16 @@
 import inspect
 from dataclasses import dataclass
 from types import MappingProxyType
-from typing import Any, Callable, Literal, Self, TypeAlias
+from typing import Any, Awaitable, Callable, Literal, Self, TypeAlias
 
 from starlette.datastructures import QueryParams
 from starlette.requests import Request
+from starlette.responses import Response
 from starlette.routing import Route as StarletteRoute
 
 type Method = Literal["GET", "POST", "PATCH", "HEAD", "OPTIONS", "PUT", "DELETE"]
+type MiddlewareCallable = Callable[[Request, Callable], Awaitable[Response]]
+type GroupStackEntry = tuple[str, list[MiddlewareCallable], str | None]
 
 InspectedParameters: TypeAlias = MappingProxyType[str, inspect.Parameter]
 
@@ -122,24 +125,71 @@ def extract_request_params(
     return request_params
 
 
+def _apply_middleware(
+    handler: Callable, middlewares: list[MiddlewareCallable]
+) -> Callable:
+    for mw in reversed(middlewares):
+        next_handler = handler
+
+        async def wrapped(request: Request, _next=next_handler, _mw=mw) -> Response:
+            return await _mw(request, _next)
+
+        handler = wrapped
+    return handler
+
+
 class InternalRoute:
-    def __init__(self, route: StarletteRoute):
-        self.route = route
+    def __init__(
+        self,
+        path: str,
+        methods: list[Method],
+        callable: Callable,
+        group_middlewares: list[MiddlewareCallable],
+        middleware_group: str | None,
+    ):
+        self._path = path
+        self._methods = methods
+        self._callable = callable
+        self._group_middlewares = group_middlewares
+        self._middleware_group = middleware_group
+        self._middlewares: list[MiddlewareCallable] = []
+        self._name: str | None = None
 
     def name(self, name: str) -> Self:
-        self.route.name = name
-
+        self._name = name
         return self
+
+    def middleware(self, *mw: MiddlewareCallable) -> Self:
+        self._middlewares.extend(mw)
+        return self
+
+    def build(self, named_stacks: dict[str, list[MiddlewareCallable]] | None = None) -> StarletteRoute:
+        handler = wrap_handler(self._callable)
+        handler = _apply_middleware(handler, self._middlewares)         # route-level (innermost)
+        handler = _apply_middleware(handler, self._group_middlewares)   # inline group middleware
+        named_group = (named_stacks or {}).get(self._middleware_group or "", [])
+        handler = _apply_middleware(handler, named_group)               # named stack (outermost)
+        route = StarletteRoute(self._path, handler, methods=self._methods)
+        if self._name is not None:
+            route.name = self._name
+        return route
 
 
 class _GroupContext:
-    def __init__(self, router: "Router", prefix: str, middleware: list):
+    def __init__(
+        self,
+        router: "Router",
+        prefix: str,
+        middlewares: list[MiddlewareCallable],
+        middleware_group: str | None,
+    ):
         self._router = router
         self._prefix = prefix
-        self._middleware = middleware
+        self._middlewares = middlewares
+        self._middleware_group = middleware_group
 
     def __enter__(self) -> "Router":
-        self._router._push_group(self._prefix, self._middleware)
+        self._router._push_group(self._prefix, self._middlewares, self._middleware_group)
         return self._router
 
     def __exit__(self, *args) -> None:
@@ -149,23 +199,46 @@ class _GroupContext:
 class Router:
     def __init__(self):
         self._routes: list[InternalRoute] = []
-        self._group_stack: list[tuple[str, list]] = []
+        self._group_stack: list[GroupStackEntry] = []
 
-    def _push_group(self, prefix: str, middleware: list) -> None:
-        self._group_stack.append((prefix, middleware))
+    def _push_group(self, prefix: str, middlewares: list[MiddlewareCallable], middleware_group: str | None) -> None:
+        self._group_stack.append((prefix, middlewares, middleware_group))
 
     def _pop_group(self) -> None:
         self._group_stack.pop()
 
     def _current_prefix(self) -> str:
-        return "".join(prefix for prefix, _ in self._group_stack)
+        return "".join(prefix for prefix, _, __ in self._group_stack)
 
-    def group(self, prefix: str = "", middleware: list | None = None) -> _GroupContext:
-        return _GroupContext(self, prefix, middleware or [])
+    def _current_middlewares(self) -> list[MiddlewareCallable]:
+        result: list[MiddlewareCallable] = []
+        for _, middlewares, __ in self._group_stack:
+            result.extend(middlewares)
+        return result
+
+    def _current_middleware_group(self) -> str | None:
+        for _, __, middleware_group in reversed(self._group_stack):
+            if middleware_group is not None:
+                return middleware_group
+        return None
+
+    def group(
+        self,
+        prefix: str = "",
+        middlewares: list[MiddlewareCallable] | None = None,
+        middleware_group: str | None = None,
+    ) -> _GroupContext:
+        return _GroupContext(self, prefix, middlewares or [], middleware_group)
 
     def _add(self, path: str, methods: list[Method], callable: Callable) -> InternalRoute:
         full_path = self._current_prefix() + path
-        route = InternalRoute(StarletteRoute(full_path, wrap_handler(callable), methods=methods))
+        route = InternalRoute(
+            full_path,
+            methods,
+            callable,
+            group_middlewares=self._current_middlewares(),
+            middleware_group=self._current_middleware_group(),
+        )
         self._routes.append(route)
         return route
 
