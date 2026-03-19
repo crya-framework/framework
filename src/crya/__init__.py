@@ -12,12 +12,15 @@ from crya.responses import (
     unprocessable,
 )
 from crya.routing import MiddlewareCallable, Router
+from crya.testing import TestClient, TestResponse
 from crya.vite import ViteConfig
 
 __all__ = [
     "App",
     "MiddlewareCallable",
     "Router",
+    "TestClient",
+    "TestResponse",
     "ViteConfig",
     "set_app",
     "view",
