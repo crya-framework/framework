@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from crya._registry import get_current_app, set_app as set_app
+from crya.config.errors import model_validate_config
 from crya.config.loader import load_config_dict
 from crya.config.schemas import CorsConfig, DatabaseConfig, TemplatingConfig
 from crya.middleware.cors import CorsMiddleware
@@ -50,19 +51,23 @@ class App:
 
         templating_dict = load_config_dict(root, config_directory, "templating")
         templating = (
-            TemplatingConfig.model_validate(templating_dict)
+            model_validate_config(TemplatingConfig, templating_dict, "config/templating.py")
             if templating_dict is not None
             else TemplatingConfig()
         )
 
         db_dict = load_config_dict(root, config_directory, "database")
         self._db_url: str | None = (
-            DatabaseConfig.model_validate(db_dict).url if db_dict is not None else None
+            model_validate_config(DatabaseConfig, db_dict, "config/database.py").url
+            if db_dict is not None
+            else None
         )
 
         cors_dict = load_config_dict(root, config_directory, "cors")
         self._cors: CorsConfig | None = (
-            CorsConfig.model_validate(cors_dict) if cors_dict is not None else None
+            model_validate_config(CorsConfig, cors_dict, "config/cors.py")
+            if cors_dict is not None
+            else None
         )
 
         self.templates_path = root / templating.templates_path

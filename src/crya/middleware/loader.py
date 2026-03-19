@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from crya.config.errors import model_validate_config
 from crya.config.loader import load_config_dict
 from crya.config.schemas import MiddlewareConfig
 from crya.middleware.defaults import MiddlewareCallable
@@ -15,7 +16,7 @@ def load_middleware_stack(
     if config_dict is None:
         return list(defaults)
 
-    config = MiddlewareConfig.model_validate(config_dict)
+    config = model_validate_config(MiddlewareConfig, config_dict, "config/middleware.py")
     mutation = getattr(config, group)
     stack = list(defaults)
 

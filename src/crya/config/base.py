@@ -1,6 +1,9 @@
 from typing import Any
 
+from pydantic import ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from crya.config.errors import raise_config_error
 
 _env_instance: "BaseEnv | None" = None
 
@@ -13,7 +16,10 @@ class BaseEnv(BaseSettings):
     )
 
     def __init__(self, **data):
-        super().__init__(**data)
+        try:
+            super().__init__(**data)
+        except ValidationError as e:
+            raise_config_error(e, "config/env.py")
         global _env_instance
         _env_instance = self
 

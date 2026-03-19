@@ -4,7 +4,6 @@ from pathlib import Path
 import pytest
 
 _config_base = importlib.import_module("crya.config.base")
-from pydantic import ValidationError
 
 from crya import BaseEnv, env
 
@@ -63,7 +62,7 @@ def test_raises_on_missing_required_key(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("REQUIRED_KEY", raising=False)
 
-    with pytest.raises(ValidationError):
+    with pytest.raises(RuntimeError, match="Configuration error in config/env.py"):
         StrictEnv()
 
 
