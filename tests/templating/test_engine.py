@@ -1,11 +1,18 @@
 import os
 from pathlib import Path
 
-from crya.templating import render_from_string, set_component_base_dir
+import pytest
+
+from crya.templating import render_from_string, set_cache_dir, set_component_base_dir
 
 PROJECT_ROOT = Path(os.path.abspath(__file__)).parent.parent.parent
 
 TEMPLATING_FIXTURES_DIR = Path(PROJECT_ROOT) / "tests" / "fixtures" / "templating"
+
+
+@pytest.fixture(autouse=True)
+def configure_cache_dir(tmp_path):
+    set_cache_dir(tmp_path)
 
 
 def test_it_renders_a_simple_template_without_context():
