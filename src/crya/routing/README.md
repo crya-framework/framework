@@ -51,7 +51,7 @@ router.get("/", home).name("home")
 ```python
 router = Router()
 
-with router.group(prefix="/api", middleware=[AuthMiddleware]):
+with router.group(prefix="/api", middlewares=[AuthMiddleware]):
     router.get("/users", list_users)      # → GET /api/users
     router.post("/users", create_user)    # → POST /api/users
 
