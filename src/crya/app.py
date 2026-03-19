@@ -5,7 +5,8 @@ from pathlib import Path
 
 from crya._registry import get_current_app, set_app as set_app
 from crya.config.loader import load_config_dict
-from crya.config.schemas import DatabaseConfig, TemplatingConfig
+from crya.config.schemas import CorsConfig, DatabaseConfig, TemplatingConfig
+from crya.middleware.cors import CorsMiddleware
 from crya.middleware.defaults import DEFAULT_API_MIDDLEWARE, DEFAULT_WEB_MIDDLEWARE
 from crya.middleware.loader import load_middleware_stack
 from crya.orm import db, disconnect_all
@@ -16,6 +17,7 @@ from starlette.applications import Starlette
 from starlette.responses import HTMLResponse
 from starlette.routing import Mount
 from starlette.staticfiles import StaticFiles
+from starlette.types import ASGIApp
 
 
 def view(template: str, context: dict | None = None) -> HTMLResponse:
@@ -58,11 +60,16 @@ class App:
             DatabaseConfig.model_validate(db_dict).url if db_dict is not None else None
         )
 
+        cors_dict = load_config_dict(root, config_directory, "cors")
+        self._cors: CorsConfig | None = (
+            CorsConfig.model_validate(cors_dict) if cors_dict is not None else None
+        )
+
         self.templates_path = root / templating.templates_path
         self._root = root
         self._config_directory = config_directory
         self._routes: list[InternalRoute] = []
-        self.starlette_app: Starlette | None = None
+        self.starlette_app: ASGIApp | None = None
         self._vite_build_dir: Path | None = None
         self._vite_build_url: str = "/build"
         set_cache_dir(root / templating.cache_path)
@@ -115,5 +122,7 @@ class App:
     async def __call__(self, scope, receive, send, *args, **kwargs):
         if self.starlette_app is None:
             self.starlette_app = self._build_starlette_app()
+            if self._cors is not None:
+                self.starlette_app = CorsMiddleware(self.starlette_app, self._cors)
 
         return await self.starlette_app(scope, receive, send, *args, **kwargs)
